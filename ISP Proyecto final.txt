@@ -1,0 +1,140 @@
+ISP
+
+enable
+configure terminal
+hostname ISP
+
+! --- Enlace hacia Santo Domingo ---
+interface Ethernet0/0
+ description Link_to_Santo_Domingo_R-CORE
+ ip address 8.0.0.1 255.255.255.240
+ duplex full
+ no shutdown
+ exit
+
+! --- Enlace hacia La Romana ---
+interface Ethernet0/1
+ description Link_to_Romana
+ ip address 8.0.0.17 255.255.255.240
+ duplex full
+ no shutdown
+ exit
+
+! --- Enlace hacia Santiago ---
+interface Ethernet0/2
+ description Link_to_Santiago
+ ip address 8.0.0.33 255.255.255.240
+ duplex full
+ no shutdown
+ exit
+
+! --- Servidor Web Simulado ---
+interface Loopback0
+ description Servidor_Web_ISP
+ ip address 8.0.0.49 255.255.255.240
+ exit
+
+end
+write
+
+
+SANTO DOMINGO
+
+enable
+configure terminal
+
+interface Ethernet0/3
+ description Link_to_ISP
+ ip address 8.0.0.2 255.255.255.240
+ duplex full
+ ip nat outside
+ no shutdown
+ exit
+
+interface Ethernet0/0
+ ip nat inside
+ exit
+interface Ethernet0/1
+ ip nat inside
+ exit
+
+ip route 0.0.0.0 0.0.0.0 8.0.0.1
+access-list 100 permit ip 172.16.0.0 0.0.255.255 any
+ip nat inside source list 100 interface Ethernet0/3 overload
+
+router ospf 1
+ default-information originate
+ exit
+end
+write
+
+
+ROMANA
+
+enable
+configure terminal
+
+interface Ethernet0/1
+ description Link_to_ISP
+ ip address 8.0.0.18 255.255.255.240
+ duplex full
+ ip nat outside
+ no shutdown
+ exit
+
+interface Ethernet0/0.10
+ ip nat inside
+ exit
+interface Ethernet0/0.20
+ ip nat inside
+ exit
+interface Ethernet0/0.30
+ ip nat inside
+ exit
+
+ip route 0.0.0.0 0.0.0.0 8.0.0.17
+access-list 100 permit ip 172.18.0.0 0.0.255.255 any
+ip nat inside source list 100 interface Ethernet0/1 overload
+
+router ospf 1
+ default-information originate
+ exit
+end
+write
+
+
+SANTIAGO
+
+enable
+configure terminal
+
+interface Ethernet0/0
+ no switchport
+ description Link_to_ISP
+ ip address 8.0.0.34 255.255.255.240
+ duplex full
+ ip nat outside
+ no shutdown
+ exit
+
+interface Vlan9
+ ip nat inside
+ exit
+interface Vlan10
+ ip nat inside
+ exit
+interface Vlan11
+ ip nat inside
+ exit
+
+
+ip route 0.0.0.0 0.0.0.0 8.0.0.33
+access-list 100 permit ip 172.17.0.0 0.0.255.255 any
+ip nat inside source list 100 interface Ethernet0/0 overload
+
+
+router ospf 10
+ default-information originate
+ exit
+end
+write

@@ -1,0 +1,829 @@
+======================
+
+  R-Santo Domingo
+
+=======================
+
+
+enable
+configure terminal
+hostname R-Santo Domingo
+
+
+interface e0/3
+ip address dhcp
+no shutdowm
+
+
+access-list 100 permit ip 172.16.0.0 0.0.255.255 any
+
+ip nat inside source list 100 interface Ethernet0/3 overload
+
+interface Ethernet0/3
+ ip address 8.0.0.2 255.255.255.240
+ ip nat outside
+
+i
+interface Tunnel1
+ ip nat inside
+
+ip nat inside source list 1 pool NAT-POOL1
+
+interface e0/0
+description Connection to R-SW1
+ ip address 172.16.2.130 255.255.255.252
+ip nat inside
+ 
+ no shutdown
+ exit
+
+interface Ethernet0/1
+description Connection to R-SW2
+ duplex full
+ ip address 172.16.2.134 255.255.255.252
+ip nat inside
+ 
+ no shutdown
+ exit
+
+
+
+router ospf 1
+ router-id 2.2.2.2
+ network 172.16.2.128 0.0.0.3 area 0
+ network 172.16.2.132 0.0.0.3 area 0
+network 8.0.0.0  0.0.0.15 area 0
+
+
+do write
+
+interface tunnel 1
+ ip address 172.16.3.3 255.255.255.248
+ tunnel source e0/3
+ tunnel mode gre multipoint
+ ip nhrp network-id 10
+ ip nhrp authentication NOVA
+ ip nhrp map 172.16.3.1 8.0.0.36
+ ip nhrp map multicast 8.0.0.36
+ ip nhrp nhs 172.16.3.1
+ ip mtu 1400
+ ip tcp adjust-mss 1360
+exit
+
+crypto isakmp policy 1
+ encryption aes
+ hash sha512
+ authentication pre-share
+ group 14
+ lifetime 86400
+exit
+
+crypto isakmp keepalive 10 10
+
+crypto isakmp key NOVA address 0.0.0.0 0.0.0.0
+
+crypto ipsec transform-set DN-VPN esp-aes esp-sha512-hmac
+ mode transport
+exit
+
+crypto ipsec profile NOVA-VPN
+ set transform-set DN-VPN
+exit
+
+interface tunnel 1
+ tunnel protection ipsec profile NOVA-VPN
+exit
+
+
+
+=======================
+
+ISP
+
+
+
+======================
+
+interface Ethernet0/3
+description Connection to R-core
+ duplex full
+ ip address  8.0.0.0.1 255.255.255.240
+
+ interface Ethernet0/0
+description Connection to Santiago
+ duplex full
+ ip address  8.0.0.0.33 255.255.255.240
+exit
+ip dhcp excluded-address 8.0.0.1
+ip dhcp excluded-address 8.0.0.33
+ip dhcp pool 1
+network 8.0.0.0 255.255.255.240
+ip dhcp pool 2
+network 8.0.0.32 255.255.255.240
+
+interface Ethernet0/1
+description Connection to Romana
+ duplex full
+ ip address  8.0.0.0.17 255.255.255.240
+no shutdown
+exit
+ip dhcp pool 3
+network 8.0.0.16 255.255.255.240
+ip dhcp excluded-address 8.0.0.17
+
+router ospf 10
+ router-id 2.2.2.2
+ network 8.0.0.0  0.0.0.15 area 0
+ network 8.0.0.16  0.0.0.15 area 0
+ network 8.0.0.32  0.0.0.15 area 0
+
+---
+ 	R-SW1
+
+=======================
+
+enable
+configure terminal
+
+hostname R-SW1
+vtp version 2
+vtp mode server
+vtp domain itla
+vtp password itla
+
+ 
+vlan 2
+ name Transporte
+vlan 3
+ name Almacenamiento
+ vlan 4
+ name Costos
+vlan 5
+name Logistica
+ vlan 99
+exit
+ip routing
+
+
+interface range  e0/1-3
+switchport trunk encapsulation dot1q
+switchport mode trunk
+switchport trunk native vlan 99
+switchport trunk allowed vlan 2,3,4,5,99
+switchport nonegotiate
+no shutdown
+exit
+
+interface Vlan5
+ ip address 172.16.0.2 255.255.255.0
+ standby 5 ip 172.16.0.1
+ standby 5 priority 255
+ standby 5 preempt
+
+ no shutdown
+exit
+
+interface Vlan2
+ ip address 172.16.2.2 255.255.255.128
+ standby 2 ip 172.16.2.1
+ standby 2 priority 255
+ standby 2 preempt
+ 
+ 
+ no shutdown
+exit
+
+interface Vlan3
+ ip address 172.16.1.130 255.255.255.128
+ standby 3 ip 172.16.1.129
+ standby 3 priority 255
+ standby 3 preempt
+ 
+ no shutdown
+exit
+
+interface Vlan4
+ ip address 172.16.1.2 255.255.255.128
+ standby 4 ip  172.16.1.1
+ standby 4 priority 255
+ standby 4 preempt
+
+ no shutdown
+exit
+
+
+interface Ethernet0/0
+ description Conexion con el R-CORE
+no switchport
+ ip address 172.16.2.129 255.255.255.252
+ duplex full
+ no shutdown
+exit
+
+router ospf 10
+ router-id 1.1.1.1
+ network 172.16.0.0 0.0.0.255 area 0
+network 172.16.1.0 0.0.0.127 area 0
+network 172.16.1.128 0.0.0.127 area 0
+network 172.16.2.0 0.0.0.127 area 0
+network 172.16.2.128 0.0.0.3 area 0
+network 172.16.2.132 0.0.0.3 area 0
+
+
+
+interface range e1/0-2
+switchport trunk encapsulation dot1q
+switchport mode trunk
+switchport trunk native vlan 99
+switchport trunk allowed vlan 2,3,4,5,99
+switchport nonegotiate
+exit
+
+
+
+
+do write
+
+
+======================
+
+ 	R-SW2
+
+=======================
+
+enable
+configure terminal
+
+hostname R-SW2
+vtp version 2
+vtp mode client
+vtp domain itla
+vtp password itla
+
+
+
+ip routing
+
+interface range e1/0-2, e0/1-3
+switchport trunk encapsulation dot1q
+switchport mode trunk
+switchport trunk native vlan 99
+switchport trunk allowed vlan 2,3,4,5,99
+switchport nonegotiate
+no shutdown
+exit
+
+interface Vlan5
+ ip address 172.16.0.3 255.255.255.0
+ standby 5 ip 172.16.0.1
+ standby 5 priority 100
+ standby 5 preempt
+
+ no shutdown
+exit
+
+interface Vlan2
+ ip address 172.16.2.3 255.255.255.128
+ standby 2 ip 172.16.2.1
+ standby 2 priority 100
+ standby 2 preempt
+
+ 
+ no shutdown
+exit
+
+interface Vlan3
+ ip address 172.16.1.131 255.255.255.128
+ standby 3 ip 172.16.1.129
+ standby 3 priority 100
+ standby 3 preempt
+ 
+ no shutdown
+exit
+
+interface Vlan 4
+ ip address 172.16.1.32 255.255.255.128
+ standby 4 ip 172.16.1.1
+ standby 4 priority 100
+ standby 4 preempt
+ no shutdown
+exit
+
+
+interface Ethernet0/0
+ description Conexion con el R-CORE
+no switchport
+ ip address 172.16.2.133 255.255.255.252
+ duplex full
+ no shutdown
+exit
+
+router ospf 10
+ router-id 1.1.1.2
+ network 172.16.0.0 0.0.0.255 area 0
+network 172.16.1.0 0.0.0.127 area 0
+network 172.16.1.128 0.0.0.127 area 0
+network 172.16.2.0 0.0.0.127 area 0
+network 172.16.2.128 0.0.0.3 area 0
+network 172.16.2.132 0.0.0.3 area 0
+
+
+
+
+
+interface range e1/0-2
+switchport trunk encapsulation dot1q
+switchport mode trunk
+switchport trunk native vlan 99
+switchport trunk allowed vlan 2,3,4,5,99
+switchport nonegotiate
+exit
+
+
+do write
+
+
+
+
+======================
+
+ 	Sw-Transporte
+
+=======================
+
+enable
+configure terminal
+
+hostname Sw-Transporte
+vtp version 2
+vtp mode client
+vtp domain itla
+vtp password itla
+
+ip dhcp snooping
+ip dhcp snooping vlan 2,3,4,5,99
+ip arp inspection vlan 2,3,4,5,99
+
+interface range e0/0-1
+switchport trunk encapsulation dot1q
+switchport mode trunk
+switchport trunk native vlan 99
+switchport trunk allowed vlan 2,3,4,5,99
+switchport nonegotiate
+ip dhcp snooping trust
+ ip arp inspection trust
+
+no shutdown
+exit
+interface e0/2
+ switchport mode access
+switchport access vlan 2
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+no shutdown
+ex
+interface e0/3
+switchport mode access
+switchport access vlan 2
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+no shutdown
+
+
+
+interface range e0/2-3
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ 
+======================
+
+ 	Sw-Logistica
+
+=======================
+
+enable
+configure terminal
+
+hostname Sw-Logistica
+vtp version 2
+vtp mode client
+vtp domain itla
+vtp password itla
+
+ip dhcp snooping
+ip dhcp snooping vlan 2,3,4,5,99
+ip arp inspection vlan 2,3,4,5,99
+
+interface range e0/0-1
+switchport trunk encapsulation dot1q
+switchport mode trunk
+switchport trunk native vlan 99
+switchport trunk allowed vlan 2,3,4,5,99
+switchport nonegotiate
+ip dhcp snooping trust
+ ip arp inspection trust
+
+no shutdown
+exit
+interface e0/2
+ switchport mode access
+switchport access vlan 5
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+no shutdown
+ex
+interface e0/3
+switchport mode access
+switchport access vlan 5
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+no shutdown
+
+
+
+interface range e0/2-3
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ 
+======================
+
+
+======================
+
+ 	Sw-Costos
+
+=======================
+
+enable
+configure terminal
+
+hostname Sw-Costos
+vtp version 2
+vtp mode client
+vtp domain itla
+vtp password itla
+ip dhcp snooping
+ip dhcp snooping vlan 2,3,4,5,99
+ip arp inspection vlan 2,3,4,5,99
+
+interface range e0/0-1
+switchport trunk encapsulation dot1q
+switchport mode trunk
+switchport trunk native vlan 99
+switchport trunk allowed vlan 2,3,4,5,99
+switchport nonegotiate
+ip dhcp snooping trust
+ ip arp inspection trust
+
+no shutdown
+exit
+interface e0/2
+ switchport mode access
+switchport access vlan 4
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+no shutdown
+ex
+interface e0/3
+switchport mode access
+switchport access vlan 4
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+no shutdown
+
+
+
+interface range e0/2-3
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+
+======================
+
+
+ 	R1-ROMANA
+
+=======================
+
+
+
+enable
+configure terminal
+hostname Romana
+
+ip nat pool NAT-POOL1 8.0.0.19 8.0.0.30 netmask 255.255.255.240
+access-list 1 permit 172.18.0.128 0.0.0.63
+access-list 1 permit 172.18.0.0 0.0.0.127
+access-list 1 permit 172.18.0.192 0.0.0.15
+
+
+
+ip nat inside source list 1 pool NAT-POOL1
+
+interface e0/3
+ip nat outside
+
+interface e0/0
+description Connection to R-SW1
+ ip address 172.16.2.130 255.255.255.252
+ip nat inside
+interface e0/0
+no shutdown
+ interface e0/0.6
+
+ encapsulation dot1Q 6
+ ip address 172.18.0.129 255.255.255.192
+ip nat inside
+ no shutdown
+
+ interface e0/0.7
+ encapsulation dot1Q 7
+ ip address 172.18.0.1 255.255.255.128
+ip nat inside
+ no shutdown
+
+interface e0/0.8
+ encapsulation dot1Q 8
+ ip address 172.18.0.193 255.255.255.240
+ip nat inside
+ no shutdown
+
+interface e0/1
+ip address dhcp
+no shutdown
+duplex full
+ip nat outside
+
+exit
+
+router ospf 1
+network 8.0.0.16 0.0.0.15 area 0
+ router-id 1.2.2.2
+ network 172.18.0.128 0.0.0.63 area 0
+ network 172.18.0.0 0.0.0.127 area 0
+ network 172.18.0.192 0.0.0.15 area 0
+
+
+
+do write
+
+interface tunnel 1
+ ip address 172.16.3.2 255.255.255.248
+ tunnel source e0/1
+ tunnel mode gre multipoint
+ ip nhrp network-id 10
+ ip nhrp authentication NOVA
+ ip nhrp map 172.16.3.1 8.0.0.36
+ ip nhrp map multicast 8.0.0.36
+ ip nhrp nhs 172.16.3.1
+ ip mtu 1400
+ ip tcp adjust-mss 1360
+exit
+
+interface tunnel 1
+ ip ospf network broadcast
+ ip ospf priority 0
+exit
+crypto isakmp policy 1
+ encryption aes
+ hash sha512
+ authentication pre-share
+ group 14
+ lifetime 86400
+exit
+
+crypto isakmp keepalive 10 10
+crypto isakmp key NOVA address 0.0.0.0 0.0.0.0
+crypto ipsec transform-set DN-VPN esp-aes esp-sha512-hmac
+ mode transport
+exit
+
+crypto ipsec profile NOVA-VPN
+ set transform-set DN-VPN
+exit
+interface tunnel 1
+ tunnel protection ipsec profile NOVA-VPN
+exit
+---
+ 	SW4
+
+=======================
+
+enable
+configure terminal
+
+hostname SW4
+vtp version 2
+vtp mode server
+vtp domain itla
+vtp password itla
+
+vlan 6
+ name Marketing
+vlan 7
+  Name Ventas
+vlan 8
+name clientes
+vlan 99
+exit
+interface port-channel 1
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 6,7,8,99
+
+ 
+exit
+interface range e0/1-3
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 6,7,8,99
+ channel-group 1 mode active
+
+interface e0/0
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 6,7,8,99
+ 
+
+ exit
+
+---
+ 	SW5
+
+=======================
+
+enable
+configure terminal
+
+hostname SW5
+vtp version 2
+vtp mode client
+vtp domain itla
+vtp password itla
+
+
+interface port-channel 1
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 9,10,11,99
+
+ 
+exit
+interface range e0/1-3
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 6,7,8,99
+
+ channel-group 1 mode active
+
+ exit
+
+======================
+
+ 	R1-Santiago
+
+=======================
+
+
+
+
+enable
+configure terminal
+
+hostname R-SANTIAGO
+
+
+
+interface e0/0
+ip address dhcp
+no shutdown
+ip nat outside
+
+interface e0/1
+no shutdown
+
+
+ interface e0/1.9
+ encapsulation dot1Q 9
+  ip address 172.17.0.1 255.255.255.224
+ip nat inside
+ no shutdown
+
+ interface e0/1.10
+ encapsulation dot1Q 10
+ip address 172.17.0.33 255.255.255.240
+ip nat inside
+ no shutdown
+
+interface e0/1.11
+ encapsulation dot1Q 11
+ip address 172.17.0.49	255.255.255.240
+ip nat inside
+ no shutdown
+
+
+no ip nat inside source list 100 interface Ethernet0/3 overload
+
+ip nat pool NAT-POOL1 8.0.0.35 8.0.0.46 netmask 255.255.255.240
+access-list 1 permit 172.17.0.0 0.0.0.31
+access-list 1 permit 172.17.0.32 0.0.0.15
+access-list 1 permit 172.17.0.48 0.0.0.15
+
+ip nat inside source list 1 pool NAT-POOL1 overload
+
+router ospf 10
+router-id 1.2.1.1
+network 8.0.0.32  0.0.0.15 area 0
+ network 172.17.0.0 0.0.0.31 area 0
+ network 172.17.0.32 0.0.0.15 area 0
+ network 172.17.0.48 0.0.0.15 area 0
+
+interface tunnel 1
+ ip address 172.16.3.1 255.255.255.248
+ tunnel source e0/0
+ tunnel mode gre multipoint
+ ip nhrp network-id 10
+ ip nhrp authentication NOVA
+ ip nhrp map multicast dynamic
+ ip mtu 1400
+ ip tcp adjust-mss 1360
+exit
+
+
+
+interface tunnel 1
+ ip ospf network broadcast
+ ip ospf priority 255
+exit
+
+crypto isakmp policy 1
+ encryption aes
+ hash sha512
+ authentication pre-share
+ group 14
+ lifetime 86400
+exit
+
+crypto isakmp keepalive 10 10
+crypto isakmp key NOVA address 0.0.0.0 0.0.0.0
+
+
+crypto ipsec transform-set DN-VPN esp-aes esp-sha512-hmac
+ mode transport
+exit
+
+crypto ipsec profile NOVA-VPN
+ set transform-set DN-VPN
+exit
+interface tunnel 1
+ tunnel protection ipsec profile NOVA-VPN
+exit
+
+
+---
+SW-Santiago
+---
+enable
+configure terminal
+
+hostname Sw-SANTIAGO
+vtp version 2
+vtp mode server
+vtp domain itla
+vtp password itla
+
+vlan 9
+ name Data Center
+vlan 10
+ name Operativo
+vlan 11
+  name Junta Directiva
+ vlaN 99
+ip dhcp snooping
+ip dhcp snooping vlan 9,10,11,99
+ip arp inspection vlan 9,10,1199
+
+
+interface range e0/0
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 9,10,11,99
+ip dhcp snooping trust
+ ip arp inspection trust
+
+
+
+interface e0/1
+switchport mode access
+switchport access vlan 11
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+no shutdown
